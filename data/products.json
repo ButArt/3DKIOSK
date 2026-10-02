@@ -1,0 +1,47 @@
+[
+  {
+    "id": 1,
+    "name": "Dreamstate No.4",
+    "price": 4990,
+    "category": "home",
+    "sku": "KIO-001",
+    "material": "Матовая бумага 200 г/м²",
+    "size": "30×40 см",
+    "stock": 15,
+    "weight": 220,
+    "desc": "Абстрактная композиция.",
+    "images": [
+      "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=600&h=800&fit=crop"
+    ]
+  },
+  {
+    "id": 2,
+    "name": "Mezhi",
+    "price": 3990,
+    "category": "home",
+    "sku": "KIO-002",
+    "material": "Матовая бумага",
+    "size": "40×50 см",
+    "stock": 8,
+    "weight": 250,
+    "desc": "Минималистичный постер.",
+    "images": [
+      "https://images.unsplash.com/photo-1579783902614-a3fb3927b6a5?w=600&h=800&fit=crop"
+    ]
+  },
+  {
+    "id": 3,
+    "name": "Nordic Lamp",
+    "price": 8990,
+    "category": "lamps",
+    "sku": "KIO-004",
+    "material": "Металл + дерево",
+    "size": "40 см",
+    "stock": 5,
+    "weight": 1200,
+    "desc": "Скандинавский светильник.",
+    "images": [
+      "https://images.unsplash.com/photo-1507473885765-e6ed057f782c?w=600&h=800&fit=crop"
+    ]
+  }
+]
