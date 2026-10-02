@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>3DKIOSK — Принты и декор</title>
+<title>KIOSKO — Принты и декор</title>
 <style>
   :root {
     --bg: #ffffff; --text: #111111; --muted: #555555; --border: #e5e5e5;
@@ -203,7 +203,7 @@
 <body>
 
 <header id="siteHeader">
-  <div class="logo" onclick="showPage('catalog')">3DKIOSK</div>
+  <div class="logo" onclick="showPage('catalog')">KIOSKO</div>
   <nav>
     <a href="#" onclick="showPage('catalog')">Главная</a>
     <a href="#" onclick="showPage('productsAdmin')">Товары</a>
@@ -224,7 +224,7 @@
 <div id="catalog" class="page active">
   <div class="page-title">
     <h1>ПРИНТЫ И ДЕКОР</h1>
-    <p>Коллекция 3Д продукции, светильников и предметов декора.</p>
+    <p>Коллекция геометрических постеров, светильников и предметов декора.</p>
   </div>
   <div class="content">
     <aside class="filters">
@@ -386,13 +386,13 @@
 <!-- ABOUT & CONTACTS -->
 <div id="about" class="page">
   <div class="page-title"><h1>О нас</h1></div>
-  <p style="max-width:700px;color:var(--muted);">3DKIOSK — магазин качественных принтов, светильников и предметов декора. Мы работаем с 2021 года.</p>
+  <p style="max-width:700px;color:var(--muted);">KIOSKO — магазин качественных принтов, светильников и предметов декора. Мы работаем с 2021 года.</p>
 </div>
 <div id="contacts" class="page">
   <div class="page-title"><h1>Контакты</h1></div>
   <p><strong>Адрес:</strong> г. Москва, ул. Дизайнерская, 15</p>
   <p><strong>Телефон:</strong> +7 (495) 123-45-67</p>
-  <p><strong>Email:</strong> hello@3dkiosk.store</p>
+  <p><strong>Email:</strong> hello@kiosko.store</p>
 </div>
 
 <!-- CHECKOUT -->
@@ -420,7 +420,7 @@
 </div>
 
 <footer id="siteFooter">
-  <p>© 2025 3DKIOSK. Все права защищены.</p>
+  <p>© 2025 KIOSKO. Все права защищены.</p>
 </footer>
 
 <!-- CART -->
@@ -452,10 +452,10 @@
     { id:4, date:"19 июля 2025", title:"Геометрия в интерьере", text:"Почему абстракция так популярна." }
   ];
 
-  let products = JSON.parse(localStorage.getItem('kiosk_products')) || defaultProducts;
-  let blogPosts = JSON.parse(localStorage.getItem('kiosk_blog')) || defaultBlog;
-  let cart = JSON.parse(localStorage.getItem('kiosk_cart')) || [];
-  let siteSettings = JSON.parse(localStorage.getItem('kiosk_settings')) || { header:'', background:'', footer:'' };
+  let products = JSON.parse(localStorage.getItem('kiosko_products')) || defaultProducts;
+  let blogPosts = JSON.parse(localStorage.getItem('kiosko_blog')) || defaultBlog;
+  let cart = JSON.parse(localStorage.getItem('kiosko_cart')) || [];
+  let siteSettings = JSON.parse(localStorage.getItem('kiosko_settings')) || { header:'', background:'', footer:'' };
   let selectedImages = [];
   let currentProduct = null;
   let currentImageIndex = 0;
@@ -492,7 +492,7 @@
     const reader = new FileReader();
     reader.onload = (ev) => {
       siteSettings[type] = ev.target.result;
-      localStorage.setItem('kiosk_settings', JSON.stringify(siteSettings));
+      localStorage.setItem('kiosko_settings', JSON.stringify(siteSettings));
       applySiteSettings();
     };
     reader.readAsDataURL(file);
@@ -503,13 +503,13 @@
     const url = document.getElementById(inputId).value.trim();
     if (!url) return;
     siteSettings[type] = url;
-    localStorage.setItem('kiosk_settings', JSON.stringify(siteSettings));
+    localStorage.setItem('kiosko_settings', JSON.stringify(siteSettings));
     applySiteSettings();
   }
 
   function clearSiteImage(type) {
     siteSettings[type] = '';
-    localStorage.setItem('kiosk_settings', JSON.stringify(siteSettings));
+    localStorage.setItem('kiosko_settings', JSON.stringify(siteSettings));
     if (type === 'header') {
       document.getElementById('siteHeader').style.backgroundImage = '';
       document.getElementById('headerPreview').style.backgroundImage = '';
@@ -625,43 +625,19 @@
     `).join('') || '<p style="color:var(--muted)">Нет товаров</p>';
   }
 
-function handleImageSelect(e) {
-  selectedImages = [];
-  const preview = document.getElementById('imagePreview');
-  const urlsInput = document.getElementById('imageUrls');
-  preview.innerHTML = '';
-
-  const files = Array.from(e.target.files);
-  if (files.length === 0) return;
-
-  const suggestedPaths = [];
-
-  files.forEach((file, index) => {
-    // Предлагаем относительный путь
-    const suggestedPath = `images/${file.name}`;
-    suggestedPaths.push(suggestedPath);
-
-    const reader = new FileReader();
-    reader.onload = (ev) => {
-      selectedImages.push(ev.target.result);
-      preview.innerHTML += `<img src="${ev.target.result}" title="${file.name}">`;
-      
-      // Как только все файлы прочитаны — заполняем поле путей
-      if (selectedImages.length === files.length) {
-        // Сохраняем уже существующие пути + новые предложенные
-        const currentUrls = urlsInput.value.trim();
-        const newPaths = suggestedPaths.join(', ');
-        
-        if (currentUrls) {
-          urlsInput.value = currentUrls + ', ' + newPaths;
-        } else {
-          urlsInput.value = newPaths;
-        }
-      }
-    };
-    reader.readAsDataURL(file);
-  });
-}
+  function handleImageSelect(e) {
+    selectedImages = [];
+    const preview = document.getElementById('imagePreview');
+    preview.innerHTML = '';
+    Array.from(e.target.files).forEach(file => {
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        selectedImages.push(ev.target.result);
+        preview.innerHTML += `<img src="${ev.target.result}">`;
+      };
+      reader.readAsDataURL(file);
+    });
+  }
 
   function resetProductForm() {
     document.getElementById('editId').value = '';
@@ -698,14 +674,12 @@ function handleImageSelect(e) {
     const price = parseFloat(document.getElementById('productPrice').value);
     if (!name || isNaN(price)) return alert('Укажите название и цену');
 
-    let images = [];
-const urls = document.getElementById('imageUrls').value.trim();
-if (urls) {
-  images = urls.split(',').map(s => s.trim()).filter(Boolean);
-}
-if (images.length === 0) {
-  images = ['https://via.placeholder.com/600x800?text=No+Image'];
-}
+    let images = [...selectedImages];
+    const urls = document.getElementById('imageUrls').value.trim();
+    if (urls) {
+      images = images.concat(urls.split(',').map(s => s.trim()).filter(Boolean));
+    }
+    if (images.length === 0) images = ['https://via.placeholder.com/600x800?text=No+Image'];
 
     const data = {
       name, price,
@@ -727,7 +701,7 @@ if (images.length === 0) {
       data.id = Date.now();
       products.push(data);
     }
-    localStorage.setItem('kiosk_products', JSON.stringify(products));
+    localStorage.setItem('kiosko_products', JSON.stringify(products));
     renderAdminList();
     applyFilters();
     alert('Товар сохранён');
@@ -742,9 +716,9 @@ if (images.length === 0) {
   function deleteProductById(id) {
     if (!confirm('Удалить товар?')) return;
     products = products.filter(p => p.id != id);
-    localStorage.setItem('kiosk_products', JSON.stringify(products));
+    localStorage.setItem('kiosko_products', JSON.stringify(products));
     cart = cart.filter(i => i.id != id);
-    localStorage.setItem('kiosk_cart', JSON.stringify(cart));
+    localStorage.setItem('kiosko_cart', JSON.stringify(cart));
     updateCartUI();
     renderAdminList();
     applyFilters();
@@ -822,7 +796,7 @@ if (images.length === 0) {
       data.id = Date.now();
       blogPosts.unshift(data);
     }
-    localStorage.setItem('kiosk_blog', JSON.stringify(blogPosts));
+    localStorage.setItem('kiosko_blog', JSON.stringify(blogPosts));
     hideBlogForm();
     renderBlog();
   }
@@ -835,7 +809,7 @@ if (images.length === 0) {
   function deleteBlogPostById(id) {
     if (!confirm('Удалить пост?')) return;
     blogPosts = blogPosts.filter(p => p.id != id);
-    localStorage.setItem('kiosk_blog', JSON.stringify(blogPosts));
+    localStorage.setItem('kiosko_blog', JSON.stringify(blogPosts));
     hideBlogForm();
     renderBlog();
   }
@@ -846,7 +820,7 @@ if (images.length === 0) {
     const existing = cart.find(i => i.id === id);
     if (existing) existing.qty += 1;
     else cart.push({...product, qty:1});
-    localStorage.setItem('kiosk_cart', JSON.stringify(cart));
+    localStorage.setItem('kiosko_cart', JSON.stringify(cart));
     updateCartUI();
   }
 
@@ -855,13 +829,13 @@ if (images.length === 0) {
     if (!item) return;
     item.qty += d;
     if (item.qty <= 0) cart = cart.filter(i => i.id !== id);
-    localStorage.setItem('kiosk_cart', JSON.stringify(cart));
+    localStorage.setItem('kiosko_cart', JSON.stringify(cart));
     updateCartUI();
   }
 
   function removeFromCart(id) {
     cart = cart.filter(i => i.id !== id);
-    localStorage.setItem('kiosk_cart', JSON.stringify(cart));
+    localStorage.setItem('kiosko_cart', JSON.stringify(cart));
     updateCartUI();
   }
 
@@ -911,7 +885,7 @@ if (images.length === 0) {
     if (!name) return alert('Укажите имя');
     alert(`Спасибо, ${name}! Заказ оформлен.`);
     cart = [];
-    localStorage.setItem('kiosk_cart','[]');
+    localStorage.setItem('kiosko_cart','[]');
     updateCartUI();
     showPage('catalog');
   }
