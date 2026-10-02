@@ -625,45 +625,42 @@
     `).join('') || '<p style="color:var(--muted)">Нет товаров</p>';
   }
 
-async function handleImageSelect(e) {
+function handleImageSelect(e) {
+  selectedImages = [];
+  const preview = document.getElementById('imagePreview');
+  const urlsInput = document.getElementById('imageUrls');
+  preview.innerHTML = '';
+
   const files = Array.from(e.target.files);
   if (files.length === 0) return;
 
-  const preview = document.getElementById('imagePreview');
-  const urlsInput = document.getElementById('imageUrls');
-  
-  // Показываем, что идёт загрузка
-  preview.innerHTML = '<p style="color:var(--muted)">Загрузка на сервер...</p>';
+  const suggestedPaths = [];
 
-  const formData = new FormData();
-  files.forEach(file => formData.append('files', file));
+  files.forEach((file, index) => {
+    // Предлагаем относительный путь
+    const suggestedPath = `images/${file.name}`;
+    suggestedPaths.push(suggestedPath);
 
-  try {
-    const response = await fetch('/upload', {
-      method: 'POST',
-      body: formData
-    });
-
-    const data = await response.json();
-
-    if (data.paths && data.paths.length > 0) {
-      // Добавляем пути в поле
-      const current = urlsInput.value.trim();
-      const newPaths = data.paths.join(', ');
-      urlsInput.value = current ? current + ', ' + newPaths : newPaths;
-
-      // Обновляем предпросмотр
-      selectedImages = data.paths; // теперь храним пути, а не base64
-      preview.innerHTML = data.paths.map(path => 
-        `<img src="${path}" title="${path}">`
-      ).join('');
-    } else {
-      preview.innerHTML = '<p style="color:red">Ошибка загрузки</p>';
-    }
-  } catch (err) {
-    console.error(err);
-    preview.innerHTML = '<p style="color:red">Не удалось загрузить файлы. Запущен ли сервер?</p>';
-  }
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      selectedImages.push(ev.target.result);
+      preview.innerHTML += `<img src="${ev.target.result}" title="${file.name}">`;
+      
+      // Как только все файлы прочитаны — заполняем поле путей
+      if (selectedImages.length === files.length) {
+        // Сохраняем уже существующие пути + новые предложенные
+        const currentUrls = urlsInput.value.trim();
+        const newPaths = suggestedPaths.join(', ');
+        
+        if (currentUrls) {
+          urlsInput.value = currentUrls + ', ' + newPaths;
+        } else {
+          urlsInput.value = newPaths;
+        }
+      }
+    };
+    reader.readAsDataURL(file);
+  });
 }
 
   function resetProductForm() {
