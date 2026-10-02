@@ -1,7 +1,7 @@
 [
   {
     "id": 1,
-    "name": "Опора для пионов",
+    "name": "opora_dlja_pionov",
     "price": 4990,
     "category": "garden",
     "sku": "KIO-001",
@@ -9,7 +9,7 @@
     "size": "",
     "stock": 15,
     "weight": 220,
-    "desc": "ÐÐµÑ Ð¾Ð¿Ð¸ÑÐ°Ð½Ð¸Ñ",
+    "desc": "opora_dlja_pionov",
     "images": [
       "https://via.placeholder.com/600x800?text=No+Image"
     ]
@@ -31,7 +31,7 @@
   },
   {
     "id": 3,
-    "name": "Ð¡Ð²ÐµÑÐ¸Ð»ÑÐ½Ð¸Ðº Ð»Ð¸ÑÐ°",
+    "name": "svetilnik_lisa",
     "price": 8990,
     "category": "lamps",
     "sku": "KIO-004",
