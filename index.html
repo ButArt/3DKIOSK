@@ -122,7 +122,16 @@
   .form-container textarea { min-height: 90px; resize: vertical; }
   .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
   .image-preview { display: flex; flex-wrap: wrap; gap: 10px; margin: 12px 0; }
-  .image-preview img { width: 80px; height: 100px; object-fit: cover; border: 1px solid var(--border); }
+    .image-preview { display: flex; flex-wrap: wrap; gap: 10px; margin: 12px 0; }
+  .preview-item { position: relative; }
+  .preview-item img { width: 80px; height: 100px; object-fit: cover; border: 1px solid var(--border); }
+  .preview-remove {
+    position: absolute; top: -6px; right: -6px;
+    width: 22px; height: 22px; border-radius: 50%;
+    background: var(--danger); color: white; border: none;
+    font-size: 14px; cursor: pointer; display: flex;
+    align-items: center; justify-content: center; line-height: 1;
+  }
   .form-actions { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 10px; }
 
   /* Blog */
@@ -301,8 +310,9 @@
         <label>Описание</label>
         <textarea id="productDesc"></textarea>
 
-        <label>Изображения (файлы)</label>
+        <label>Изображения (файлы — загружаются в репозиторий)</label>
         <input type="file" id="imageInput" accept="image/*" multiple onchange="handleImageSelect(event)">
+        <p id="uploadStatus" style="font-size:13px;color:var(--muted);margin-top:4px;"></p>
         <label style="margin-top:12px;">Или URL / относительные пути (через запятую)</label>
         <input type="text" id="imageUrls" placeholder="images/photo1.jpg, https://example.com/img.jpg">
         <div class="image-preview" id="imagePreview"></div>
@@ -379,6 +389,21 @@
       <input type="text" id="footerUrl" placeholder="Или URL / путь" style="width:100%;padding:8px;margin:10px 0;border:1px solid var(--border);background:var(--input-bg);color:var(--text);">
       <button class="btn btn-sm" onclick="applyUrl('footer')">Применить URL</button>
       <button class="btn btn-sm btn-secondary" onclick="clearSiteImage('footer')">Сбросить</button>
+    </div>
+    <div class="settings-card">
+      <h3>GitHub API (для загрузки картинок в репозиторий)</h3>
+      <p style="font-size:13px;color:var(--muted);margin-bottom:12px;">Токен нужен с правами <code>repo</code>. Создать: Settings → Developer settings → Personal access tokens.</p>
+      <label style="display:block;margin-bottom:6px;font-size:14px;">GitHub Token</label>
+      <input type="password" id="ghToken" placeholder="ghp_xxxxxxxxxxxx" style="width:100%;padding:10px;margin-bottom:12px;border:1px solid var(--border);background:var(--input-bg);color:var(--text);">
+      <label style="display:block;margin-bottom:6px;font-size:14px;">Владелец репозитория</label>
+      <input type="text" id="ghOwner" placeholder="butart" style="width:100%;padding:10px;margin-bottom:12px;border:1px solid var(--border);background:var(--input-bg);color:var(--text);">
+      <label style="display:block;margin-bottom:6px;font-size:14px;">Имя репозитория</label>
+      <input type="text" id="ghRepo" placeholder="3DKIOSK" style="width:100%;padding:10px;margin-bottom:12px;border:1px solid var(--border);background:var(--input-bg);color:var(--text);">
+      <label style="display:block;margin-bottom:6px;font-size:14px;">Ветка</label>
+      <input type="text" id="ghBranch" placeholder="main" style="width:100%;padding:10px;margin-bottom:12px;border:1px solid var(--border);background:var(--input-bg);color:var(--text);">
+      <button class="btn btn-sm" onclick="saveGitHubSettings()">Сохранить настройки</button>
+      <button class="btn btn-sm btn-secondary" onclick="testGitHubConnection()">Проверить</button>
+      <div id="ghStatus" style="margin-top:10px;font-size:13px;"></div>
     </div>
   </div>
 </div>
@@ -531,7 +556,7 @@
     window.scrollTo(0,0);
     if (id === 'productsAdmin') { resetProductForm(); renderAdminList(); }
     if (id === 'blog') renderBlog();
-    if (id === 'settings') applySiteSettings();
+    if (id === 'settings') { applySiteSettings(); loadGitHubSettings(); }
   }
 
   function formatPrice(p) { return Number(p).toLocaleString('ru-RU') + ' ₽'; }
@@ -625,39 +650,182 @@
     `).join('') || '<p style="color:var(--muted)">Нет товаров</p>';
   }
 
-function handleImageSelect(e) {
-  const files = Array.from(e.target.files);
-  if (files.length === 0) return;
+// ========== GITHUB API ==========
+  let githubSettings = JSON.parse(localStorage.getItem('kiosk_github')) || { token:'', owner:'', repo:'', branch:'main' };
 
-  files.forEach(file => {
-    const reader = new FileReader();
-    reader.onload = (ev) => {
-      selectedImages.push(ev.target.result);
-      renderImagePreview();
-    };
-    reader.readAsDataURL(file);
-  });
-  // Не сбрасываем value — позволяет выбрать те же файлы повторно
-  e.target.value = '';
-}
+  function saveGitHubSettings() {
+    githubSettings.token = document.getElementById('ghToken').value.trim();
+    githubSettings.owner = document.getElementById('ghOwner').value.trim();
+    githubSettings.repo = document.getElementById('ghRepo').value.trim();
+    githubSettings.branch = document.getElementById('ghBranch').value.trim() || 'main';
+    localStorage.setItem('kiosk_github', JSON.stringify(githubSettings));
+    document.getElementById('ghStatus').innerHTML = '<span style="color:green;">✓ Сохранено</span>';
+  }
 
-function renderImagePreview() {
-  document.getElementById('imagePreview').innerHTML =
-    selectedImages.map((s, i) =>
-      `<div style="position:relative;">
-        <img src="${s}" title="Изображение ${i + 1}">
-        <button type="button" onclick="removeImage(${i})"
-          style="position:absolute;top:-6px;right:-6px;width:20px;height:20px;
-          border-radius:50%;background:var(--danger);color:#fff;border:none;
-          cursor:pointer;font-size:12px;line-height:1;">×</button>
-      </div>`
-    ).join('');
-}
+  function loadGitHubSettings() {
+    document.getElementById('ghToken').value = githubSettings.token || '';
+    document.getElementById('ghOwner').value = githubSettings.owner || '';
+    document.getElementById('ghRepo').value = githubSettings.repo || '';
+    document.getElementById('ghBranch').value = githubSettings.branch || 'main';
+  }
 
-function removeImage(i) {
-  selectedImages.splice(i, 1);
-  renderImagePreview();
-}
+  async function testGitHubConnection() {
+    if (!githubSettings.token || !githubSettings.owner || !githubSettings.repo) {
+      document.getElementById('ghStatus').innerHTML = '<span style="color:var(--danger);">Заполните все поля и сохраните</span>';
+      return;
+    }
+    const statusEl = document.getElementById('ghStatus');
+    statusEl.innerHTML = 'Проверка...';
+    try {
+      const res = await fetch(`https://api.github.com/repos/${githubSettings.owner}/${githubSettings.repo}`, {
+        headers: { 'Authorization': `Bearer ${githubSettings.token}`, 'Accept': 'application/vnd.github+json' }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        statusEl.innerHTML = `<span style="color:green;">✓ Репозиторий: ${data.full_name} (ветка: ${data.default_branch})</span>`;
+      } else if (res.status === 401) {
+        statusEl.innerHTML = '<span style="color:var(--danger);">✗ Неверный токен</span>';
+      } else if (res.status === 404) {
+        statusEl.innerHTML = '<span style="color:var(--danger);">✗ Репозиторий не найден</span>';
+      } else {
+        statusEl.innerHTML = `<span style="color:var(--danger);">✗ Ошибка: ${res.status}</span>`;
+      }
+    } catch(err) {
+      statusEl.innerHTML = `<span style="color:var(--danger);">✗ ${err.message}</span>`;
+    }
+  }
+
+  // Загрузка файла в репозиторий через GitHub API
+  async function githubUploadFile(filename, base64Content) {
+    const { token, owner, repo, branch } = githubSettings;
+    if (!token || !owner || !repo) {
+      throw new Error('GitHub API не настроен. Укажите токен и репозиторий в Настройках.');
+    }
+    const path = `images/${filename}`;
+    const url = `https://api.github.com/repos/${owner}/${repo}/contents/${path}`;
+    const res = await fetch(url, {
+      method: 'PUT',
+      headers: { 'Authorization': `Bearer ${token}`, 'Accept': 'application/vnd.github+json' },
+      body: JSON.stringify({
+        message: `Upload image: ${filename}`,
+        content: base64Content,
+        branch: branch
+      })
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(`Upload failed (${res.status}): ${err.message || res.statusText}`);
+    }
+    const data = await res.json();
+    return data.content.path; // возвращаем путь в репозитории
+  }
+
+  // Удаление файла из репозитория через GitHub API
+  async function githubDeleteFile(filepath, sha) {
+    const { token, owner, repo, branch } = githubSettings;
+    if (!token || !owner || !repo) return;
+    if (!sha) {
+      // Нужно получить SHA файла
+      const checkRes = await fetch(`https://api.github.com/repos/${owner}/${repo}/contents/${filepath}?ref=${branch}`, {
+        headers: { 'Authorization': `Bearer ${token}`, 'Accept': 'application/vnd.github+json' }
+      });
+      if (!checkRes.ok) return; // файл уже не существует
+      const checkData = await checkRes.json();
+      sha = checkData.sha;
+    }
+    await fetch(`https://api.github.com/repos/${owner}/${repo}/contents/${filepath}`, {
+      method: 'DELETE',
+      headers: { 'Authorization': `Bearer ${token}`, 'Accept': 'application/vnd.github+json' },
+      body: JSON.stringify({
+        message: `Delete image: ${filepath}`,
+        sha: sha,
+        branch: branch
+      })
+    });
+  }
+
+  // Удаление картинки по пути (ищем её в репозитории)
+  async function githubDeleteImageByPath(imagePath) {
+    // Проверяем, что это локальный путь в репозитории (не http://)
+    if (!imagePath || imagePath.startsWith('http') || imagePath.startsWith('data:')) return;
+    // Нормализуем путь — убираем ведущий слэш
+    const cleanPath = imagePath.replace(/^\/+/, '');
+    try {
+      await githubDeleteFile(cleanPath, null);
+    } catch(e) {
+      console.warn('Не удалось удалить файл из репозитория:', cleanPath, e);
+    }
+  }
+
+// ========== IMAGE HANDLING ==========
+  async function handleImageSelect(e) {
+    const files = Array.from(e.target.files);
+    if (files.length === 0) return;
+
+    const statusEl = document.getElementById('uploadStatus');
+    const preview = document.getElementById('imagePreview');
+
+    // Проверяем, настроен ли GitHub API
+    if (!githubSettings.token || !githubSettings.owner || !githubSettings.repo) {
+      statusEl.innerHTML = '<span style="color:var(--danger);">GitHub API не настроен. Перейдите в Настройки и укажите токен, владельца и репозиторий.</span>';
+      return;
+    }
+
+    statusEl.innerHTML = `Загрузка ${files.length} файл(ов) в репозиторий...`;
+
+    for (const file of files) {
+      // Конвертируем в base64 (без префикса data:...)
+      const base64 = await new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => {
+          // Убираем префикс data:image/xxx;base64,
+          const result = reader.result.split(',')[1];
+          resolve(result);
+        };
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
+
+      // Уникальное имя файла: timestamp + оригинальное имя
+      const uniqueName = `${Date.now()}_${file.name.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
+      
+      try {
+        const repoPath = await githubUploadFile(uniqueName, base64);
+        // Добавляем относительный путь в selectedImages
+        selectedImages.push(`images/${uniqueName}`);
+        renderImagePreview();
+        statusEl.innerHTML = `<span style="color:green;">✓ Загружено: ${uniqueName}</span>`;
+      } catch(err) {
+        statusEl.innerHTML = `<span style="color:var(--danger);">✗ Ошибка загрузки: ${err.message}</span>`;
+      }
+    }
+    // Очищаем input, чтобы можно было выбрать те же файлы снова
+    e.target.value = '';
+  }
+
+  function renderImagePreview() {
+    const preview = document.getElementById('imagePreview');
+    preview.innerHTML = selectedImages.map((src, i) => `
+      <div class="preview-item">
+        <img src="${src}" onerror="this.src='https://via.placeholder.com/80x100?text=?'" title="${src}">
+        <button class="preview-remove" onclick="removeImage(${i})" title="Удалить">×</button>
+      </div>
+    `).join('');
+  }
+
+  async function removeImage(index) {
+    const imgPath = selectedImages[index];
+    selectedImages.splice(index, 1);
+    renderImagePreview();
+    // Удаляем файл из репозитория, если это локальный путь
+    if (imgPath && !imgPath.startsWith('http') && !imgPath.startsWith('data:')) {
+      try {
+        await githubDeleteImageByPath(imgPath);
+      } catch(e) {
+        console.warn('Не удалось удалить файл из репозитория:', e);
+      }
+    }
+  }
 
   function resetProductForm() {
     document.getElementById('editId').value = '';
@@ -666,6 +834,7 @@ function removeImage(i) {
     ['productName','productPrice','productSku','productMaterial','productSize','productStock','productWeight','productDesc','imageUrls'].forEach(id => document.getElementById(id).value = '');
     document.getElementById('productCategory').value = 'home';
     document.getElementById('imageInput').value = '';
+    document.getElementById('uploadStatus').innerHTML = '';
     selectedImages = [];
     renderImagePreview();
   }
@@ -694,11 +863,12 @@ function removeImage(i) {
     const price = parseFloat(document.getElementById('productPrice').value);
     if (!name || isNaN(price)) return alert('Укажите название и цену');
 
+    // Объединяем загруженные файлы (пути в репозитории) + URL из текстового поля
     let images = [...selectedImages];
     const urls = document.getElementById('imageUrls').value.trim();
     if (urls) {
-      urls.split(',').map(s => s.trim()).filter(Boolean).forEach(url => {
-        if (!images.includes(url)) images.push(url);
+      urls.split(',').map(s => s.trim()).filter(Boolean).forEach(u => {
+        if (!images.includes(u)) images.push(u);
       });
     }
     if (images.length === 0) {
@@ -732,13 +902,26 @@ function removeImage(i) {
     resetProductForm();
   }
 
-  function deleteProduct() {
+  async function deleteProduct() {
     const id = document.getElementById('editId').value;
-    if (id) deleteProductById(id);
+    if (id) await deleteProductById(id);
   }
 
-  function deleteProductById(id) {
-    if (!confirm('Удалить товар?')) return;
+  async function deleteProductById(id) {
+    if (!confirm('Удалить товар? Картинки из репозитория также будут удалены.')) return;
+    // Находим товар и удаляем его картинки из репозитория
+    const product = products.find(p => p.id == id);
+    if (product && product.images) {
+      for (const imgPath of product.images) {
+        if (imgPath && !imgPath.startsWith('http') && !imgPath.startsWith('data:') && !imgPath.includes('placeholder.com')) {
+          try {
+            await githubDeleteImageByPath(imgPath);
+          } catch(e) {
+            console.warn('Не удалось удалить картинку:', imgPath, e);
+          }
+        }
+      }
+    }
     products = products.filter(p => p.id != id);
     localStorage.setItem('kiosk_products', JSON.stringify(products));
     cart = cart.filter(i => i.id != id);
