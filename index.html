@@ -122,7 +122,16 @@
   .form-container textarea { min-height: 90px; resize: vertical; }
   .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
   .image-preview { display: flex; flex-wrap: wrap; gap: 10px; margin: 12px 0; }
-  .image-preview img { width: 80px; height: 100px; object-fit: cover; border: 1px solid var(--border); }
+    .image-preview { display: flex; flex-wrap: wrap; gap: 10px; margin: 12px 0; }
+  .preview-item { position: relative; }
+  .preview-item img { width: 80px; height: 100px; object-fit: cover; border: 1px solid var(--border); }
+  .preview-remove {
+    position: absolute; top: -6px; right: -6px;
+    width: 22px; height: 22px; border-radius: 50%;
+    background: var(--danger); color: white; border: none;
+    font-size: 14px; cursor: pointer; display: flex;
+    align-items: center; justify-content: center; line-height: 1;
+  }
   .form-actions { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 10px; }
 
   /* Blog */
@@ -261,10 +270,7 @@
 
 <!-- ТОВАРЫ -->
 <div id="productsAdmin" class="page">
-  <div class="page-title">
-    <h1>Управление товарами</h1>
-    <button class="btn btn-sm" style="width:auto;margin-top:10px;" onclick="loadProductsFromRepo()">🔄 Обновить из репозитория</button>
-  </div>
+  <div class="page-title"><h1>Управление товарами</h1></div>
   <div class="admin-layout">
     <div>
       <h3 style="margin-bottom:16px;">Список товаров</h3>
@@ -304,8 +310,9 @@
         <label>Описание</label>
         <textarea id="productDesc"></textarea>
 
-        <label>Изображения (файлы)</label>
+        <label>Изображения (файлы — загружаются в репозиторий)</label>
         <input type="file" id="imageInput" accept="image/*" multiple onchange="handleImageSelect(event)">
+        <p id="uploadStatus" style="font-size:13px;color:var(--muted);margin-top:4px;"></p>
         <label style="margin-top:12px;">Или URL / относительные пути (через запятую)</label>
         <input type="text" id="imageUrls" placeholder="images/photo1.jpg, https://example.com/img.jpg">
         <div class="image-preview" id="imagePreview"></div>
@@ -384,20 +391,18 @@
       <button class="btn btn-sm btn-secondary" onclick="clearSiteImage('footer')">Сбросить</button>
     </div>
     <div class="settings-card">
-      <h3>GitHub API (синхронизация товаров)</h3>
-      <p style="font-size:13px;color:var(--muted);margin-bottom:12px;">Токен нужен для записи товаров и картинок в репозиторий. Без токена товары хранятся только в браузере.</p>
+      <h3>GitHub API (для загрузки картинок в репозиторий)</h3>
+      <p style="font-size:13px;color:var(--muted);margin-bottom:12px;">Токен нужен с правами <code>repo</code>. Создать: Settings → Developer settings → Personal access tokens.</p>
       <label style="display:block;margin-bottom:6px;font-size:14px;">GitHub Token</label>
-      <input type="password" id="ghToken" placeholder="ghp_..." style="width:100%;padding:10px;margin-bottom:12px;border:1px solid var(--border);background:var(--input-bg);color:var(--text);">
+      <input type="password" id="ghToken" placeholder="ghp_xxxxxxxxxxxx" style="width:100%;padding:10px;margin-bottom:12px;border:1px solid var(--border);background:var(--input-bg);color:var(--text);">
       <label style="display:block;margin-bottom:6px;font-size:14px;">Владелец репозитория</label>
       <input type="text" id="ghOwner" placeholder="butart" style="width:100%;padding:10px;margin-bottom:12px;border:1px solid var(--border);background:var(--input-bg);color:var(--text);">
       <label style="display:block;margin-bottom:6px;font-size:14px;">Имя репозитория</label>
       <input type="text" id="ghRepo" placeholder="3DKIOSK" style="width:100%;padding:10px;margin-bottom:12px;border:1px solid var(--border);background:var(--input-bg);color:var(--text);">
       <label style="display:block;margin-bottom:6px;font-size:14px;">Ветка</label>
       <input type="text" id="ghBranch" placeholder="main" style="width:100%;padding:10px;margin-bottom:12px;border:1px solid var(--border);background:var(--input-bg);color:var(--text);">
-      <div style="display:flex;gap:10px;flex-wrap:wrap;">
-        <button class="btn btn-sm" onclick="saveGitHubSettings()">Сохранить</button>
-        <button class="btn btn-sm btn-secondary" onclick="testGitHubConnection()">Проверить</button>
-      </div>
+      <button class="btn btn-sm" onclick="saveGitHubSettings()">Сохранить настройки</button>
+      <button class="btn btn-sm btn-secondary" onclick="testGitHubConnection()">Проверить</button>
       <div id="ghStatus" style="margin-top:10px;font-size:13px;"></div>
     </div>
   </div>
@@ -472,7 +477,7 @@
     { id:4, date:"19 июля 2025", title:"Геометрия в интерьере", text:"Почему абстракция так популярна." }
   ];
 
-  let products = [];
+  let products = JSON.parse(localStorage.getItem('kiosk_products')) || defaultProducts;
   let blogPosts = JSON.parse(localStorage.getItem('kiosk_blog')) || defaultBlog;
   let cart = JSON.parse(localStorage.getItem('kiosk_cart')) || [];
   let siteSettings = JSON.parse(localStorage.getItem('kiosk_settings')) || { header:'', background:'', footer:'' };
@@ -481,172 +486,6 @@
   let currentImageIndex = 0;
   let blogPage = 1;
   const postsPerPage = 2;
-
-  // ========== GITHUB API ==========
-  let gh = JSON.parse(localStorage.getItem('kiosk_github')) || { token:'', owner:'', repo:'', branch:'main' };
-  let productsFileSha = null;
-
-  function saveGitHubSettings() {
-    gh.token = document.getElementById('ghToken').value.trim();
-    gh.owner = document.getElementById('ghOwner').value.trim();
-    gh.repo = document.getElementById('ghRepo').value.trim();
-    gh.branch = document.getElementById('ghBranch').value.trim() || 'main';
-    localStorage.setItem('kiosk_github', JSON.stringify(gh));
-    document.getElementById('ghStatus').innerHTML = '<span style="color:green;">Сохранено. Нажмите «Проверить».</span>';
-  }
-
-  function loadGitHubSettings() {
-    document.getElementById('ghToken').value = gh.token || '';
-    document.getElementById('ghOwner').value = gh.owner || '';
-    document.getElementById('ghRepo').value = gh.repo || '';
-    document.getElementById('ghBranch').value = gh.branch || 'main';
-  }
-
-  function ghApiUrl(path) {
-    return `https://api.github.com/repos/${gh.owner}/${gh.repo}/contents/${path}?ref=${gh.branch}`;
-  }
-
-  function ghHeaders() {
-    return {
-      'Authorization': `Bearer ${gh.token}`,
-      'Accept': 'application/vnd.github+json'
-    };
-  }
-
-  function ghConfigured() {
-    return !!(gh.token && gh.owner && gh.repo);
-  }
-
-  async function testGitHubConnection() {
-    if (!ghConfigured()) {
-      document.getElementById('ghStatus').innerHTML = '<span style="color:var(--danger);">Заполните все поля.</span>';
-      return;
-    }
-    document.getElementById('ghStatus').innerHTML = '<span style="color:var(--muted);">Проверка...</span>';
-    try {
-      const res = await fetch(ghApiUrl('data/products.json'), { headers: ghHeaders() });
-      if (res.ok) {
-        const data = await res.json();
-        productsFileSha = data.sha;
-        document.getElementById('ghStatus').innerHTML = '<span style="color:green;">✓ Подключено. Файл data/products.json найден.</span>';
-      } else if (res.status === 404) {
-        document.getElementById('ghStatus').innerHTML = '<span style="color:orange;">✓ Подключено. Файл data/products.json не найден — будет создан при первом сохранении.</span>';
-      } else {
-        document.getElementById('ghStatus').innerHTML = `<span style="color:var(--danger);">Ошибка: ${res.status}</span>`;
-      }
-    } catch(e) {
-      document.getElementById('ghStatus').innerHTML = `<span style="color:var(--danger);">Ошибка сети: ${e.message}</span>`;
-    }
-  }
-
-  async function loadProductsFromRepo() {
-    if (!ghConfigured()) {
-      products = JSON.parse(localStorage.getItem('kiosk_products')) || defaultProducts;
-      applyFilters();
-      return;
-    }
-    try {
-      const res = await fetch(ghApiUrl('data/products.json'), { headers: ghHeaders() });
-      if (res.ok) {
-        const data = await res.json();
-        productsFileSha = data.sha;
-        products = JSON.parse(atob(data.content));
-      } else if (res.status === 404) {
-        productsFileSha = null;
-        products = defaultProducts;
-        await saveProductsToRepo();
-      } else {
-        throw new Error(`HTTP ${res.status}`);
-      }
-    } catch(e) {
-      console.warn('GitHub load failed, using localStorage:', e.message);
-      products = JSON.parse(localStorage.getItem('kiosk_products')) || defaultProducts;
-    }
-    localStorage.setItem('kiosk_products', JSON.stringify(products));
-    applyFilters();
-  }
-
-  async function saveProductsToRepo() {
-    localStorage.setItem('kiosk_products', JSON.stringify(products));
-    if (!ghConfigured()) return;
-    try {
-      const content = btoa(unescape(encodeURIComponent(JSON.stringify(products, null, 2))));
-      const body = { message: 'Update products.json', content, branch: gh.branch };
-      if (productsFileSha) body.sha = productsFileSha;
-      const res = await fetch(ghApiUrl('data/products.json'), {
-        method: 'PUT',
-        headers: { ...ghHeaders(), 'Content-Type': 'application/json' },
-        body: JSON.stringify(body)
-      });
-      if (res.ok) {
-        const data = await res.json();
-        productsFileSha = data.content.sha;
-      } else {
-        const err = await res.json();
-        console.error('GitHub save error:', err.message);
-        alert('Не удалось сохранить в репозиторий: ' + (err.message || res.status));
-      }
-    } catch(e) {
-      console.error('GitHub save failed:', e.message);
-      alert('Не удалось сохранить в репозиторий: ' + e.message);
-    }
-  }
-
-  async function uploadImageToRepo(file) {
-    if (!ghConfigured()) return null;
-    const ts = Date.now();
-    const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
-    const path = `images/${ts}_${safeName}`;
-    try {
-      const content = await fileToBase64(file);
-      const res = await fetch(ghApiUrl(path), {
-        method: 'PUT',
-        headers: { ...ghHeaders(), 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: `Upload ${safeName}`, content, branch: gh.branch })
-      });
-      if (res.ok) {
-        return path;
-      } else {
-        const err = await res.json();
-        console.error('Upload error:', err.message);
-        alert('Не удалось загрузить картинку: ' + (err.message || res.status));
-        return null;
-      }
-    } catch(e) {
-      alert('Не удалось загрузить картинку: ' + e.message);
-      return null;
-    }
-  }
-
-  async function deleteImageFromRepo(path) {
-    if (!ghConfigured()) return;
-    if (!path.startsWith('images/')) return;
-    try {
-      const res = await fetch(ghApiUrl(path), { headers: ghHeaders() });
-      if (!res.ok) return;
-      const data = await res.json();
-      await fetch(ghApiUrl(path), {
-        method: 'DELETE',
-        headers: { ...ghHeaders(), 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: `Delete ${path}`, sha: data.sha, branch: gh.branch })
-      });
-    } catch(e) {
-      console.warn('Delete image failed:', e.message);
-    }
-  }
-
-  function fileToBase64(file) {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = () => {
-        const result = reader.result;
-        const base64 = result.split(',')[1];
-        resolve(base64);
-      };
-      reader.onerror = reject;
-      reader.readAsDataURL(file);
-    });
-  }
 
   // ========== THEME & SETTINGS ==========
   function toggleTheme() {
@@ -811,53 +650,182 @@
     `).join('') || '<p style="color:var(--muted)">Нет товаров</p>';
   }
 
-function renderImagePreview() {
-  const preview = document.getElementById('imagePreview');
-  preview.innerHTML = selectedImages.map((src, i) => {
-    const displaySrc = src.startsWith('data:') ? src : src;
-    return `<div style="position:relative;display:inline-block;">
-      <img src="${displaySrc}" title="${src}">
-      <button type="button" onclick="removeImage(${i})" style="position:absolute;top:-6px;right:-6px;background:var(--danger);color:white;border:none;border-radius:50%;width:22px;height:22px;font-size:14px;cursor:pointer;line-height:1;">×</button>
-    </div>`;
-  }).join('');
-}
+// ========== GITHUB API ==========
+  let githubSettings = JSON.parse(localStorage.getItem('kiosk_github')) || { token:'', owner:'', repo:'', branch:'main' };
 
-function removeImage(i) {
-  const img = selectedImages[i];
-  if (typeof img === 'string' && img.startsWith('images/')) {
-    deleteImageFromRepo(img);
-  }
-  selectedImages.splice(i, 1);
-  renderImagePreview();
-}
-
-async function handleImageSelect(e) {
-  const files = Array.from(e.target.files);
-  if (files.length === 0) return;
-
-  if (!ghConfigured()) {
-    // Fallback: base64 in localStorage
-    files.forEach(file => {
-      const reader = new FileReader();
-      reader.onload = (ev) => {
-        selectedImages.push(ev.target.result);
-        renderImagePreview();
-      };
-      reader.readAsDataURL(file);
-    });
-    return;
+  function saveGitHubSettings() {
+    githubSettings.token = document.getElementById('ghToken').value.trim();
+    githubSettings.owner = document.getElementById('ghOwner').value.trim();
+    githubSettings.repo = document.getElementById('ghRepo').value.trim();
+    githubSettings.branch = document.getElementById('ghBranch').value.trim() || 'main';
+    localStorage.setItem('kiosk_github', JSON.stringify(githubSettings));
+    document.getElementById('ghStatus').innerHTML = '<span style="color:green;">✓ Сохранено</span>';
   }
 
-  // Upload to repo
-  for (const file of files) {
-    const path = await uploadImageToRepo(file);
-    if (path) {
-      selectedImages.push(path);
+  function loadGitHubSettings() {
+    document.getElementById('ghToken').value = githubSettings.token || '';
+    document.getElementById('ghOwner').value = githubSettings.owner || '';
+    document.getElementById('ghRepo').value = githubSettings.repo || '';
+    document.getElementById('ghBranch').value = githubSettings.branch || 'main';
+  }
+
+  async function testGitHubConnection() {
+    if (!githubSettings.token || !githubSettings.owner || !githubSettings.repo) {
+      document.getElementById('ghStatus').innerHTML = '<span style="color:var(--danger);">Заполните все поля и сохраните</span>';
+      return;
+    }
+    const statusEl = document.getElementById('ghStatus');
+    statusEl.innerHTML = 'Проверка...';
+    try {
+      const res = await fetch(`https://api.github.com/repos/${githubSettings.owner}/${githubSettings.repo}`, {
+        headers: { 'Authorization': `Bearer ${githubSettings.token}`, 'Accept': 'application/vnd.github+json' }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        statusEl.innerHTML = `<span style="color:green;">✓ Репозиторий: ${data.full_name} (ветка: ${data.default_branch})</span>`;
+      } else if (res.status === 401) {
+        statusEl.innerHTML = '<span style="color:var(--danger);">✗ Неверный токен</span>';
+      } else if (res.status === 404) {
+        statusEl.innerHTML = '<span style="color:var(--danger);">✗ Репозиторий не найден</span>';
+      } else {
+        statusEl.innerHTML = `<span style="color:var(--danger);">✗ Ошибка: ${res.status}</span>`;
+      }
+    } catch(err) {
+      statusEl.innerHTML = `<span style="color:var(--danger);">✗ ${err.message}</span>`;
     }
   }
-  renderImagePreview();
-  e.target.value = '';
-}
+
+  // Загрузка файла в репозиторий через GitHub API
+  async function githubUploadFile(filename, base64Content) {
+    const { token, owner, repo, branch } = githubSettings;
+    if (!token || !owner || !repo) {
+      throw new Error('GitHub API не настроен. Укажите токен и репозиторий в Настройках.');
+    }
+    const path = `images/${filename}`;
+    const url = `https://api.github.com/repos/${owner}/${repo}/contents/${path}`;
+    const res = await fetch(url, {
+      method: 'PUT',
+      headers: { 'Authorization': `Bearer ${token}`, 'Accept': 'application/vnd.github+json' },
+      body: JSON.stringify({
+        message: `Upload image: ${filename}`,
+        content: base64Content,
+        branch: branch
+      })
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(`Upload failed (${res.status}): ${err.message || res.statusText}`);
+    }
+    const data = await res.json();
+    return data.content.path; // возвращаем путь в репозитории
+  }
+
+  // Удаление файла из репозитория через GitHub API
+  async function githubDeleteFile(filepath, sha) {
+    const { token, owner, repo, branch } = githubSettings;
+    if (!token || !owner || !repo) return;
+    if (!sha) {
+      // Нужно получить SHA файла
+      const checkRes = await fetch(`https://api.github.com/repos/${owner}/${repo}/contents/${filepath}?ref=${branch}`, {
+        headers: { 'Authorization': `Bearer ${token}`, 'Accept': 'application/vnd.github+json' }
+      });
+      if (!checkRes.ok) return; // файл уже не существует
+      const checkData = await checkRes.json();
+      sha = checkData.sha;
+    }
+    await fetch(`https://api.github.com/repos/${owner}/${repo}/contents/${filepath}`, {
+      method: 'DELETE',
+      headers: { 'Authorization': `Bearer ${token}`, 'Accept': 'application/vnd.github+json' },
+      body: JSON.stringify({
+        message: `Delete image: ${filepath}`,
+        sha: sha,
+        branch: branch
+      })
+    });
+  }
+
+  // Удаление картинки по пути (ищем её в репозитории)
+  async function githubDeleteImageByPath(imagePath) {
+    // Проверяем, что это локальный путь в репозитории (не http://)
+    if (!imagePath || imagePath.startsWith('http') || imagePath.startsWith('data:')) return;
+    // Нормализуем путь — убираем ведущий слэш
+    const cleanPath = imagePath.replace(/^\/+/, '');
+    try {
+      await githubDeleteFile(cleanPath, null);
+    } catch(e) {
+      console.warn('Не удалось удалить файл из репозитория:', cleanPath, e);
+    }
+  }
+
+// ========== IMAGE HANDLING ==========
+  async function handleImageSelect(e) {
+    const files = Array.from(e.target.files);
+    if (files.length === 0) return;
+
+    const statusEl = document.getElementById('uploadStatus');
+    const preview = document.getElementById('imagePreview');
+
+    // Проверяем, настроен ли GitHub API
+    if (!githubSettings.token || !githubSettings.owner || !githubSettings.repo) {
+      statusEl.innerHTML = '<span style="color:var(--danger);">GitHub API не настроен. Перейдите в Настройки и укажите токен, владельца и репозиторий.</span>';
+      return;
+    }
+
+    statusEl.innerHTML = `Загрузка ${files.length} файл(ов) в репозиторий...`;
+
+    for (const file of files) {
+      // Конвертируем в base64 (без префикса data:...)
+      const base64 = await new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => {
+          // Убираем префикс data:image/xxx;base64,
+          const result = reader.result.split(',')[1];
+          resolve(result);
+        };
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
+
+      // Уникальное имя файла: timestamp + оригинальное имя
+      const uniqueName = `${Date.now()}_${file.name.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
+      
+      try {
+        const repoPath = await githubUploadFile(uniqueName, base64);
+        // Добавляем относительный путь в selectedImages
+        selectedImages.push(`images/${uniqueName}`);
+        renderImagePreview();
+        statusEl.innerHTML = `<span style="color:green;">✓ Загружено: ${uniqueName}</span>`;
+      } catch(err) {
+        statusEl.innerHTML = `<span style="color:var(--danger);">✗ Ошибка загрузки: ${err.message}</span>`;
+      }
+    }
+    // Очищаем input, чтобы можно было выбрать те же файлы снова
+    e.target.value = '';
+  }
+
+  function renderImagePreview() {
+    const preview = document.getElementById('imagePreview');
+    preview.innerHTML = selectedImages.map((src, i) => `
+      <div class="preview-item">
+        <img src="${src}" onerror="this.src='https://via.placeholder.com/80x100?text=?'" title="${src}">
+        <button class="preview-remove" onclick="removeImage(${i})" title="Удалить">×</button>
+      </div>
+    `).join('');
+  }
+
+  async function removeImage(index) {
+    const imgPath = selectedImages[index];
+    selectedImages.splice(index, 1);
+    renderImagePreview();
+    // Удаляем файл из репозитория, если это локальный путь
+    if (imgPath && !imgPath.startsWith('http') && !imgPath.startsWith('data:')) {
+      try {
+        await githubDeleteImageByPath(imgPath);
+      } catch(e) {
+        console.warn('Не удалось удалить файл из репозитория:', e);
+      }
+    }
+  }
 
   function resetProductForm() {
     document.getElementById('editId').value = '';
@@ -866,6 +834,7 @@ async function handleImageSelect(e) {
     ['productName','productPrice','productSku','productMaterial','productSize','productStock','productWeight','productDesc','imageUrls'].forEach(id => document.getElementById(id).value = '');
     document.getElementById('productCategory').value = 'home';
     document.getElementById('imageInput').value = '';
+    document.getElementById('uploadStatus').innerHTML = '';
     selectedImages = [];
     renderImagePreview();
   }
@@ -889,12 +858,12 @@ async function handleImageSelect(e) {
     document.getElementById('imageUrls').value = '';
   }
 
-  async function saveProduct() {
+  function saveProduct() {
     const name = document.getElementById('productName').value.trim();
     const price = parseFloat(document.getElementById('productPrice').value);
     if (!name || isNaN(price)) return alert('Укажите название и цену');
 
-    // Merge selectedImages (from file upload or existing) + URLs from text field
+    // Объединяем загруженные файлы (пути в репозитории) + URL из текстового поля
     let images = [...selectedImages];
     const urls = document.getElementById('imageUrls').value.trim();
     if (urls) {
@@ -927,7 +896,6 @@ async function handleImageSelect(e) {
       products.push(data);
     }
     localStorage.setItem('kiosk_products', JSON.stringify(products));
-    await saveProductsToRepo();
     renderAdminList();
     applyFilters();
     alert('Товар сохранён');
@@ -940,19 +908,22 @@ async function handleImageSelect(e) {
   }
 
   async function deleteProductById(id) {
-    if (!confirm('Удалить товар?')) return;
-    // Delete images from repo
+    if (!confirm('Удалить товар? Картинки из репозитория также будут удалены.')) return;
+    // Находим товар и удаляем его картинки из репозитория
     const product = products.find(p => p.id == id);
     if (product && product.images) {
-      for (const img of product.images) {
-        if (typeof img === 'string' && img.startsWith('images/')) {
-          await deleteImageFromRepo(img);
+      for (const imgPath of product.images) {
+        if (imgPath && !imgPath.startsWith('http') && !imgPath.startsWith('data:') && !imgPath.includes('placeholder.com')) {
+          try {
+            await githubDeleteImageByPath(imgPath);
+          } catch(e) {
+            console.warn('Не удалось удалить картинку:', imgPath, e);
+          }
         }
       }
     }
     products = products.filter(p => p.id != id);
     localStorage.setItem('kiosk_products', JSON.stringify(products));
-    await saveProductsToRepo();
     cart = cart.filter(i => i.id != id);
     localStorage.setItem('kiosk_cart', JSON.stringify(cart));
     updateCartUI();
@@ -1128,8 +1099,8 @@ async function handleImageSelect(e) {
 
   // Init
   applySiteSettings();
+  applyFilters();
   updateCartUI();
-  loadProductsFromRepo();
 </script>
 </body>
 </html>
